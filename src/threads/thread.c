@@ -28,6 +28,13 @@
    that are ready to run but not actually running. */
 static struct list ready_list;
 
+/* List of processes in THREAD_BLOCKED state, that is, processes
+   that are blocked and waiting to be ready.  */
+static struct list blocked_list;
+
+/*  */
+static int64_t next_tick_to_wake_up;
+
 /* Idle thread. */
 static struct thread *idle_thread;
 
@@ -91,6 +98,7 @@ thread_init (void)
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&blocked_list);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -291,6 +299,56 @@ thread_exit (void)
   schedule ();
   NOT_REACHED ();
 }
+
+void 
+update_next_tick_to_wake_up (int64_t ticks) 
+{
+  if (ticks < next_tick_to_wake_up)
+    next_tick_to_wake_up = ticks;
+}
+
+int64_t 
+get_next_tick_to_wake_up (void)
+{
+  return next_tick_to_wake_up;
+}
+
+void
+thread_sleep (int64_t ticks)
+{
+  struct thread *cur = thread_current ();
+  enum intr_level old_level = intr_disable ();
+
+  ASSERT (cur != idle_thread);
+
+  update_next_tick_to_wake_up(cur->tick_to_wake_up = ticks);
+
+  list_push_back(&blocked_list, &cur->elem);
+
+  thread_block();
+  intr_set_level (old_level);
+}
+
+void
+thread_wake_up (int64_t tick_to_wake_up) 
+{
+  // Initialize with the max value of int64.
+  next_tick_to_wake_up = 0x7fffffffffffffff;
+  struct list_elem *elem;
+  elem = list_begin(&blocked_list);
+  while (elem != list_end(&blocked_list)) {
+    struct thread * t = list_entry(elem, struct thread, elem);
+
+    if (tick_to_wake_up >= t->tick_to_wake_up) {
+      elem = list_remove(&t->elem);
+      thread_unblock(t);
+    } else {
+      elem = list_next(elem);
+      update_next_tick_to_wake_up(t->tick_to_wake_up);
+    }
+  }
+}
+
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
