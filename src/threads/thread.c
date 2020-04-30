@@ -23,9 +23,9 @@
 /* Random value for basic thread
    Do not modify this value. */
 #define THREAD_BASIC 0xd42df210
-
 /* List of processes in THREAD_READY state, that is, processes
    that are ready to run but not actually running. */
+
 static struct list ready_list;
 
 /* List of processes in THREAD_BLOCKED state, that is, processes
@@ -154,6 +154,16 @@ thread_print_stats (void)
           idle_ticks, kernel_ticks, user_ticks);
 }
 
+void
+thread_test_should_yield (void)
+{
+  struct thread *cur = thread_current ();
+  struct thread *max_thread = list_head(&ready_list);
+
+  if (threads_compare_priority(max_thread, cur, 0))
+    thread_yield();
+}
+
 /* Creates a new kernel thread named NAME with the given initial
    PRIORITY, which executes FUNCTION passing AUX as the argument,
    and adds it to the ready queue.  Returns the thread identifier
@@ -207,6 +217,9 @@ thread_create (const char *name, int priority,
   /* Add to run queue. */
   thread_unblock (t);
 
+  /* Test if current thread should yield */
+  thread_test_should_yield();
+
   return tid;
 }
 
@@ -226,6 +239,14 @@ thread_block (void)
   schedule ();
 }
 
+/* A function to compare the priority of the two threads */
+bool
+threads_compare_priority (struct list_elem *a, struct list_elem *b, void * aux UNUSED)
+{
+  return list_entry(a, struct thread, elem)->priority
+    > list_entry(b, struct thread, elem)->priority;
+} 
+
 /* Transitions a blocked thread T to the ready-to-run state.
    This is an error if T is not blocked.  (Use thread_yield() to
    make the running thread ready.)
@@ -243,7 +264,7 @@ thread_unblock (struct thread *t)
 
   old_level = intr_disable ();
   ASSERT (t->status == THREAD_BLOCKED);
-  list_push_back (&ready_list, &t->elem);
+  list_insert_ordered (&ready_list, &t->elem, threads_compare_priority, 0);
   t->status = THREAD_READY;
   intr_set_level (old_level);
 }
@@ -334,16 +355,16 @@ thread_wake_up (int64_t tick_to_wake_up)
 {
   // Initialize with the max value of int64.
   next_tick_to_wake_up = 0x7fffffffffffffff;
-  struct list_elem *elem;
-  elem = list_begin(&blocked_list);
-  while (elem != list_end(&blocked_list)) {
-    struct thread * t = list_entry(elem, struct thread, elem);
+  struct list_elem *e;
+  e = list_begin(&blocked_list);
+  while (e != list_end(&blocked_list)) {
+    struct thread * t = list_entry(e, struct thread, elem);
 
     if (tick_to_wake_up >= t->tick_to_wake_up) {
-      elem = list_remove(&t->elem);
+      e = list_remove(&t->elem);
       thread_unblock(t);
     } else {
-      elem = list_next(elem);
+      e = list_next(e);
       update_next_tick_to_wake_up(t->tick_to_wake_up);
     }
   }
@@ -362,7 +383,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (curr != idle_thread) 
-    list_push_back (&ready_list, &curr->elem);
+    list_insert_ordered (&ready_list, &curr->elem, threads_compare_priority, 0);
   curr->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
