@@ -120,7 +120,7 @@ void thread_sleep (int64_t ticks);
 void thread_wake_up (int64_t ticks);
 int64_t get_next_tick_to_wake_up (void);
 void update_next_tick_to_wake_up (int64_t ticks);
-bool threads_compare_priority (struct list_elem, struct list_elem, void *);
+bool threads_compare_priority (struct list_elem *, struct list_elem *, void *);
 void thread_test_should_yield (void);
 
 void thread_block (void);

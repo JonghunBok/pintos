@@ -158,9 +158,9 @@ void
 thread_test_should_yield (void)
 {
   struct thread *cur = thread_current ();
-  struct thread *max_thread = list_head(&ready_list);
+  struct list_elem *max_thread = list_head(&ready_list);
 
-  if (threads_compare_priority(max_thread, cur, 0))
+  if (cur->priority < list_entry(max_thread, struct thread, elem)->priority)
     thread_yield();
 }
 
@@ -354,7 +354,7 @@ void
 thread_wake_up (int64_t tick_to_wake_up) 
 {
   // Initialize with the max value of int64.
-  next_tick_to_wake_up = 0x7fffffffffffffff;
+  next_tick_to_wake_up = 63;
   struct list_elem *e;
   e = list_begin(&blocked_list);
   while (e != list_end(&blocked_list)) {
@@ -383,7 +383,7 @@ thread_yield (void)
 
   old_level = intr_disable ();
   if (curr != idle_thread) 
-    list_insert_ordered (&ready_list, &curr->elem, threads_compare_priority, 0);
+    list_insert_ordered (&ready_list, &curr->elem, threads_compare_priority, NULL);
   curr->status = THREAD_READY;
   schedule ();
   intr_set_level (old_level);
