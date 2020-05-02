@@ -27,6 +27,7 @@
    that are ready to run but not actually running. */
 
 static struct list ready_list;
+static struct list mlfqs_ready_list[64];
 
 /* List of processes in THREAD_BLOCKED state, that is, processes
    that are blocked and waiting to be ready.  */
@@ -94,11 +95,15 @@ static tid_t allocate_tid (void);
 void
 thread_init (void) 
 {
+  int i = 0;
+  
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&blocked_list);
+  for (; i < 64; i++)
+    list_init (&mlfqs_ready_list[i]);
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -405,8 +410,9 @@ thread_get_priority (void)
 
 /* Sets the current thread's nice value to NICE. */
 void
-thread_set_nice (int nice UNUSED) 
+thread_set_nice (int nice) 
 {
+  thread_current () -> nice = nice;
   /* Not yet implemented. */
 }
 
@@ -414,8 +420,7 @@ thread_set_nice (int nice UNUSED)
 int
 thread_get_nice (void) 
 {
-  /* Not yet implemented. */
-  return 0;
+  return thread_current ()->nice;
 }
 
 /* Returns 100 times the system load average. */
