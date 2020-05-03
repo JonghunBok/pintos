@@ -2,10 +2,23 @@
 #define FIXED_POINT_H
 
 /* implementation of 17.14 fixed-point number representation. */
-typedef int fixed_point
+typedef int fixed_point;
 
 static int f = 1 << 14;
 
+fixed_point convert_n2f (int); 
+int convert_f2n (fixed_point);
+int convert_f2n_nearest (fixed_point);
+fixed_point add_fwf (fixed_point, fixed_point);
+fixed_point add_fwn (fixed_point, int);
+fixed_point sub_fwf (fixed_point, fixed_point); 
+fixed_point sub_fwn (fixed_point, int);
+fixed_point mul_fwf (fixed_point, fixed_point);
+fixed_point mul_fwn (fixed_point, int);
+fixed_point div_fwf (fixed_point, fixed_point);
+fixed_point div_fwn (fixed_point, int); 
+
+// --------------------------------------------------
 fixed_point 
 convert_n2f (int n)
 {
@@ -65,7 +78,7 @@ mul_fwn (fixed_point x, int n)
 fixed_point
 div_fwf (fixed_point x, fixed_point y)
 {
-  return ((int64_t) x) * f / y
+  return ((int64_t) x) * f / y;
 }
 
 fixed_point
@@ -74,4 +87,4 @@ div_fwn (fixed_point x, int n)
   return x / n;
 }
 
-#endif /* threads/fixed-point.h */
+#endif /* threads/fixed_point.h */

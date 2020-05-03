@@ -27,7 +27,7 @@
    that are ready to run but not actually running. */
 
 static struct list ready_list;
-static struct list mlfqs_ready_list[64];
+static struct list all_list;
 
 /* List of processes in THREAD_BLOCKED state, that is, processes
    that are blocked and waiting to be ready.  */
@@ -35,6 +35,12 @@ static struct list blocked_list;
 
 /*  */
 static int64_t next_tick_to_wake_up;
+
+/*  */
+static int num_ready_threads;
+
+/*  */
+static fixed_point load_avg;
 
 /* Idle thread. */
 static struct thread *idle_thread;
@@ -95,15 +101,14 @@ static tid_t allocate_tid (void);
 void
 thread_init (void) 
 {
-  int i = 0;
-  
   ASSERT (intr_get_level () == INTR_OFF);
 
   lock_init (&tid_lock);
   list_init (&ready_list);
+  list_init (&all_list);
   list_init (&blocked_list);
-  for (; i < 64; i++)
-    list_init (&mlfqs_ready_list[i]);
+
+  load_avg = 0;
 
   /* Set up a thread structure for the running thread. */
   initial_thread = running_thread ();
@@ -145,6 +150,9 @@ thread_tick (void)
 #endif
   else
     kernel_ticks++;
+
+  if (t != idle_thread)
+    t->recent_cpu++;
 
   /* Enforce preemption. */
   if (++thread_ticks >= TIME_SLICE)
@@ -241,6 +249,7 @@ thread_block (void)
   ASSERT (intr_get_level () == INTR_OFF);
 
   thread_current ()->status = THREAD_BLOCKED;
+  num_ready_threads--;
   schedule ();
 }
 
@@ -271,6 +280,7 @@ thread_unblock (struct thread *t)
   ASSERT (t->status == THREAD_BLOCKED);
   list_insert_ordered (&ready_list, &t->elem, threads_compare_priority, 0);
   t->status = THREAD_READY;
+  num_ready_threads++;
   intr_set_level (old_level);
 }
 
@@ -375,6 +385,82 @@ thread_wake_up (int64_t tick_to_wake_up)
   }
 }
 
+/* */
+fixed_point 
+calculate_priority (struct thread* t)
+{
+  return 
+    sub_fwf(
+      convert_n2f(PRI_MAX),
+      add_fwf(
+        div_fwn(t->recent_cpu, 4),
+        mul_fwn(t->nice, 2)
+      )
+    );
+}
+
+fixed_point
+calculate_recent_cpu (struct thread * t)
+{
+  fixed_point load_avg_twofold = mul_fwn(load_avg, 2);
+
+  return
+    add_fwf(
+      mul_fwf(
+        div_fwf(
+          load_avg_twofold,
+          add_fwn(load_avg_twofold, 1)
+        ),
+        t->recent_cpu
+      ),
+      t->nice
+    );
+}
+
+/* */
+void 
+update_all_threads_priority (void)
+{
+  struct list_elem *e;
+  struct thread * t;
+  e = list_begin(&all_list);
+  while (e != list_end(&all_list)) {
+    t = list_entry(e, struct thread, all_elem);
+    t->priority = calculate_priority(t);
+    e = list_next(e);
+  }
+}
+
+/* */
+void 
+update_all_threads_recent_cpu (void)
+{
+  struct list_elem *e;
+  struct thread * t;
+  e = list_begin(&all_list);
+  while (e != list_end(&all_list)) {
+    t = list_entry(e, struct thread, all_elem);
+    t->priority = calculate_recent_cpu(t);
+    e = list_next(e);
+  }
+}
+
+/* */
+void
+update_load_avg (void)
+{
+  load_avg =
+    add_fwf(
+      div_fwn(
+        mul_fwn(load_avg, 59),
+        60
+      ),
+      div_fwn(
+        convert_n2f(num_ready_threads),
+        60
+      )
+    );
+}
 
 /* Yields the CPU.  The current thread is not put to sleep and
    may be scheduled again immediately at the scheduler's whim. */
@@ -524,6 +610,8 @@ init_thread (struct thread *t, const char *name, int priority)
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
   t->magic = THREAD_MAGIC;
+
+  list_push_back(&all_list, &t->all_elem);
 }
 
 /* Allocates a SIZE-byte frame at the top of thread T's stack and
