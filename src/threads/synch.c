@@ -114,10 +114,18 @@ sema_up (struct semaphore *sema)
   ASSERT (sema != NULL);
 
   old_level = intr_disable ();
-  if (!list_empty (&sema->waiters)) 
-    thread_unblock (list_entry (list_pop_front (&sema->waiters),
-                                struct thread, elem));
   sema->value++;
+  if (!list_empty (&sema->waiters)) {
+    struct thread* front = 
+      list_entry (list_pop_front (&sema->waiters)
+          , struct thread, elem);
+
+    thread_unblock (front);
+    
+    if (front->priority > thread_current()->priority)
+      thread_yield();
+    
+  }
   intr_set_level (old_level);
 }
 
@@ -183,7 +191,7 @@ lock_init (struct lock *lock)
 }
 
 /* Acquires LOCK, sleeping until it becomes available if
-   necessary.  The lock must not already be held by the current
+   necessary. The lock must not already be held by the current
    thread.
 
    This function may sleep, so it must not be called within an

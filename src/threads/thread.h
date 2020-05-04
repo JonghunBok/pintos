@@ -5,8 +5,6 @@
 #include <list.h>
 #include <stdint.h>
 
-#include "threads/fixed-point.h"
-
 /* States in a thread's life cycle. */
 enum thread_status
   {
@@ -94,8 +92,8 @@ struct thread
     struct list donatated_priorities;          /* The list of donated priorities. */
     int64_t tick_to_wake_up;            /* Tick to wake up*/
     int64_t ticks_left_to_run;            /* Tick to wake up*/
-    fixed_point nice;
-    fixed_point recent_cpu;
+    int nice;
+    int recent_cpu;
 
     /* Shared between thread.c and synch.c. */
     struct list_elem elem;              /* List element. */
@@ -149,10 +147,12 @@ void thread_set_nice (int);
 int thread_get_recent_cpu (void);
 int thread_get_load_avg (void);
 
-fixed_point calculate_priority (struct thread *);
-fixed_point calculate_recent_cpu (struct thread *);
+int calculate_priority (struct thread *);
+int calculate_recent_cpu (struct thread *);
+void update_thread_priority (struct thread *);
 void update_all_threads_priority (void);
 void update_all_threads_recent_cpu (void);
+void update_current_thread_recent_cpu (void);
 void update_load_avg (void);
 
 #endif /* threads/thread.h */
