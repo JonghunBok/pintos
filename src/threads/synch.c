@@ -215,12 +215,6 @@ struct donation_elem
     int donation;
   };
 
-struct lock_elem
-  {
-    struct list_elem elem;
-    struct lock* lock;
-  };
-
 
 void
 lock_acquire (struct lock *lock)
@@ -229,18 +223,16 @@ lock_acquire (struct lock *lock)
   ASSERT (!intr_context ());
   ASSERT (!lock_held_by_current_thread (lock));
 
-  struct lock_elem new_lock_elem;
-  new_lock_elem.lock = lock;
-
-  list_push_back(&thread_current()->wanting_locks, &new_lock_elem);
+  thread_current()->wanting_lock = lock;
 
   // if some thread is holding this lock.
   if (lock->holder != NULL) { 
     donate_priority_to(lock->holder, 0);
-
   }
 
   sema_down (&lock->semaphore);
+  thread_current()->wanting_lock = NULL;
+
   lock->holder = thread_current ();
 }
 
@@ -249,7 +241,6 @@ void
 donate_priority_to(struct thread * holder, int degree)
 {
   struct donation_elem new_donation_elem;
-  struct list_elem * le;
   struct thread * next_holder;
 
   if (degree >= 8)
@@ -267,18 +258,10 @@ donate_priority_to(struct thread * holder, int degree)
 
     list_push_back(&holder->donatated_priorities, &new_donation_elem.elem);
 
-    if (!list_empty(&holder->wanting_locks)) {
-      le = list_head(&holder->wanting_locks);
-      while (le != list_end(&holder->wanting_locks)) {
-        next_holder = (list_entry(le, struct lock_elem, elem)->lock)->holder;
-
-        if (next_holder->priority < thread_current()->priority)
-          donate_priority_to(next_holder, degree + 1);
-
-        le = list_next(le);
-      }
+    if (holder->wanting_lock != NULL) {
+      next_holder = holder->wanting_lock->holder;
+      donate_priority_to(next_holder, degree + 1);
     }
-    
   }
 }
 
@@ -314,6 +297,7 @@ lock_release (struct lock *lock)
   ASSERT (lock != NULL);
   ASSERT (lock_held_by_current_thread (lock));
 
+  list_pop_back(&lock->holder->donatated_priorities);
   lock->holder = NULL;
   sema_up (&lock->semaphore);
 }

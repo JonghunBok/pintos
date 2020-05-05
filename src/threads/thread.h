@@ -90,7 +90,7 @@ struct thread
     int init_priority;                  /* Save the first priority set on init */
     int priority;                       /* Priority. */
     struct list donatated_priorities;          /* The list of donated priorities. */
-    struct list wanting_locks;          /* The list of locks it's wanting. */
+    struct lock * wanting_lock;          /* The list of locks it's wanting. */
     int64_t tick_to_wake_up;            /* Tick to wake up*/
     int64_t ticks_left_to_run;            /* Tick to wake up*/
     int nice;

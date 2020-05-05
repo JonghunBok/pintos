@@ -717,7 +717,6 @@ init_thread (struct thread *t, const char *name, int priority)
     //t->nice = 0;
   //}
 
-  list_init (&t->wanting_locks);
   list_init (&t->donatated_priorities);
 
   list_push_back(&all_list, &t->all_elem);
