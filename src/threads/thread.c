@@ -32,7 +32,7 @@ static struct list all_list;
 
 /* List of processes in THREAD_BLOCKED state, that is, processes
    that are blocked and waiting to be ready.  */
-static struct list blocked_list;
+static struct list sleeper_list;
 
 /*  */
 static int64_t next_tick_to_wake_up;
@@ -104,7 +104,7 @@ thread_init (void)
   lock_init (&tid_lock);
   list_init (&ready_list);
   list_init (&all_list);
-  list_init (&blocked_list);
+  list_init (&sleeper_list);
 
   load_avg = 0;
 
@@ -371,7 +371,7 @@ thread_sleep (int64_t ticks)
 
   update_next_tick_to_wake_up(cur->tick_to_wake_up = ticks);
 
-  list_push_back(&blocked_list, &cur->elem);
+  list_push_back(&sleeper_list, &cur->elem);
 
   thread_block();
   intr_set_level (old_level);
@@ -383,8 +383,8 @@ thread_wake_up (int64_t tick_to_wake_up)
   // Initialize with the max value of int64.
   next_tick_to_wake_up = 0x7fffffffffffffff;
   struct list_elem *e;
-  e = list_begin(&blocked_list);
-  while (e != list_end(&blocked_list)) {
+  e = list_begin(&sleeper_list);
+  while (e != list_end(&sleeper_list)) {
     struct thread * t = list_entry(e, struct thread, elem);
 
     if (tick_to_wake_up >= t->tick_to_wake_up) {
