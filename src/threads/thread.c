@@ -170,8 +170,16 @@ thread_test_should_yield (void)
   struct thread *cur = thread_current ();
   struct list_elem *max_thread = list_head(&ready_list);
 
+  list_sort(&ready_list, threads_compare_priority, 0);
+
+  if (list_empty(&ready_list))
+    return;
+
   if (cur->priority < list_entry(max_thread, struct thread, elem)->priority)
-    thread_yield();
+    if (intr_context())
+      intr_yield_on_return();
+    else
+      thread_yield();
 }
 
 /* Creates a new kernel thread named NAME with the given initial
@@ -226,9 +234,15 @@ thread_create (const char *name, int priority,
 
   /* Add to run queue. */
   thread_unblock (t);
-
+  
   /* Test if current thread should yield */
-  thread_test_should_yield();
+//  thread_test_should_yield();
+  // printf("my priority: %d \n", thread_current()->priority);
+
+ if(t->priority > thread_current()->priority){
+	if(!intr_context())
+		thread_yield();
+}
 
   return tid;
 }
@@ -460,10 +474,6 @@ update_all_threads_priority (void)
     if (t != idle_thread && t != NULL)
       t->priority = calculate_priority(t);
 
-  //printf("p name: %s\n", t->name);
-  //printf("nice: %d\n", t->nice);
-  //printf("recent_cpu: %d\n", t->recent_cpu);
-  //printf("priority: %d\n", t->priority);
     e = list_next(e);
   }
 
@@ -543,11 +553,21 @@ thread_yield (void)
 void
 thread_set_priority (int new_priority) 
 {
+  if (thread_mlfqs) return;
+
+  int old_priority = thread_current()->priority;
+
   thread_current ()->priority = new_priority;
-  thread_test_should_yield();
+
+  // thread_test_should_yield();
+  // 왜 안되죠  
+  
+
+  if (old_priority > new_priority)
+    thread_yield();
 }
 
-/* Returns the current thread's priority. */
+/* returns the current thread's priority. */
 int
 thread_get_priority (void) 
 {
@@ -683,6 +703,7 @@ init_thread (struct thread *t, const char *name, int priority)
   strlcpy (t->name, name, sizeof t->name);
   t->stack = (uint8_t *) t + PGSIZE;
   t->priority = priority;
+  t->init_priority = -1;
   t->magic = THREAD_MAGIC;
 
   if (thread_mlfqs) {
@@ -696,7 +717,8 @@ init_thread (struct thread *t, const char *name, int priority)
     //t->nice = 0;
   //}
 
-
+  list_init (&t->wanting_locks);
+  list_init (&t->donatated_priorities);
 
   list_push_back(&all_list, &t->all_elem);
 }
